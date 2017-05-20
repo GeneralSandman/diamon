@@ -9,15 +9,14 @@ from bs4 import BeautifulSoup
 import ssl
 import json
 
-import api.mongodb
-import api.redis
+from api.mongodb import MongoAPI
+from api.redis import RedisAPI
+from crawlers.basicCrawler import Crawler
 
 json_data = {}
 
 
-
-
-class CrawlerTaobao(object):
+class CrawlerTaobao(Crawler):
     index_url_format = 'https://item.taobao.com/item.htm?id={Id}'
     recommend_url_format = 'https://tui.taobao.com/recommend?sellerid={ShopId}&categoryid=50000671&itemid={Id}&callback=detail_pine&appid=4935&count=6&page={Page}'
     price_url_format = 'https://detailskip.taobao.com/service/getData/1/p1/item/detail/sib.htm?itemId={Id}&sellerId={ShopId}&modules=dynStock,qrcode,viewer,price,contract,duty,xmpPromotion,delivery,upp,activity,fqg,zjys,amountRestriction,couponActivity,soldQuantity&callback=onSibRequestSuccess'
@@ -30,7 +29,7 @@ class CrawlerTaobao(object):
     }
     recommend_url = ''
 
-    def __init__(self, id, redis_api, mongo_api):
+    def __init__(self, id, mongo_api):
         self.id = id
         self.redis_api = redis_api
         self.mongo_api = mongo_api
@@ -90,9 +89,9 @@ class CrawlerTaobao(object):
         json_str = json.dumps(json_data)
         print(json_str)
 
-        for i in self.newid:
-            self.redis_api.add('newid', i)
-        self.redis_api.add('doneid', self.id)
+
+    def generateNewId(self):
+        return self.newid
 
     def getInfo(self):
         request = urllib2.Request(self.index_url, headers=self.header)
@@ -115,7 +114,7 @@ class CrawlerTaobao(object):
         pattern = re.compile(pa1, re.S)
         shopname = re.findall(pattern, str(shop))
         self.shopname = shopname[0].strip(' ').replace(' ', '').replace('\n', '')
-        self.shopname=self.shopname.decode('unicode-escape').encode('utf-8').replace('\n', '')
+        self.shopname = self.shopname.decode('unicode-escape').encode('utf-8').replace('\n', '')
         self.name = soup.select('h3')[0].text.strip()
 
         subtitle = soup.select('.tb-subtitle')
@@ -199,8 +198,8 @@ def clearAll(redis_api, mongo_api):
 
 
 if __name__ == '__main__-':
-    redis_api = api.redis.RedisAPI('127.0.0.1', 6379)
-    mongo_api = api.mongodb.MongoAPI("127.0.0.1", 27017, "taobao", "tb1")
+    redis_api = RedisAPI('127.0.0.1', 6379)
+    mongo_api = MongoAPI("127.0.0.1", 27017, "taobao", "tb1")
     print('clear all')
     clearAll(redis_api, mongo_api)
 
