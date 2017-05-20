@@ -6,11 +6,8 @@
 import urllib2
 import re
 from bs4 import BeautifulSoup
-import ssl
 import json
 
-from api.mongodb import MongoAPI
-from api.redis import RedisAPI
 from crawlers.basicCrawler import Crawler
 
 json_data = {}
@@ -31,7 +28,6 @@ class CrawlerTaobao(Crawler):
 
     def __init__(self, id, mongo_api):
         self.id = id
-        self.redis_api = redis_api
         self.mongo_api = mongo_api
         self.index_url = self.index_url_format.format(Id=id)
         self.header['referer'] = self.index_url
@@ -44,7 +40,7 @@ class CrawlerTaobao(Crawler):
         self.confirmGoodsCount = 0
         self.oldprice = 0
         self.price = 0
-        self.newid = []
+        self.newids = []
 
     def __init____(self):
         self.recommend_url = self.recommend_url_format.format(ShopId=self.shopid, Id=self.id, Page=1)
@@ -70,7 +66,7 @@ class CrawlerTaobao(Crawler):
         print'交易成功:', self.confirmGoodsCount, type(self.confirmGoodsCount)
         print'原价:', self.oldprice, type(self.oldprice)
         print'现价:', self.price, type(self.price)
-        print'Newid:', len(self.newid), self.newid, type(self.newid[0])
+        print'Newid:', len(self.newids), self.newids, type(self.newids[0])
 
     def storeInformation(self):
         self.mongo_api.add({'商品ID': self.id, '商品名称': self.name, '价格': self.price, '商品描述': self.descripe, \
@@ -91,7 +87,7 @@ class CrawlerTaobao(Crawler):
 
 
     def generateNewId(self):
-        return self.newid
+        return self.newids
 
     def getInfo(self):
         request = urllib2.Request(self.index_url, headers=self.header)
@@ -143,70 +139,12 @@ class CrawlerTaobao(Crawler):
         page = response.read().decode('gbk')
         jsondata = json.loads(page[14:-2])
         for i in jsondata['result']:  # 推荐商品
-            self.newid.append(i['itemId'])
+            self.newids.append(i['itemId'])
         request = urllib2.Request(url=self.neighbor_url, headers=self.header)
         response = urllib2.urlopen(request)
         page = response.read().decode('gbk')
         jsondata = json.loads(page[12:-2])
         for i in jsondata['result']:
-            self.newid.append(i['itemId'])
+            self.newids.append(i['itemId'])
 
 
-class Spider(object):
-    def __init__(self, startid, mongo_api, redis_api):
-        self.startid = startid
-        self.mongo_api = mongo_api
-        self.redis_api = redis_api
-
-    def Action(self):
-        try:
-            CrawlerTaobao(int(self.startid), redis_api, mongo_api).Action()
-        except IndexError as e:
-            print(e)
-        except KeyError as e:
-            print(e)
-        except ssl.SSLEOFError as e:
-            print(e)
-        except urllib2.URLError as e:
-            print(e)
-            # while self.redis_api.number('newid') > 0:
-            #     newid = self.redis_api.pop('newid')
-            #     newid = int(newid)
-            #     try:
-            #         CrawlerTaobao(newid, redis_api, mongo_api).Action()
-            #     except IndexError as e:
-            #         print(e)
-            #     except KeyError as e:
-            #         print(e)
-            #     except ssl.SSLEOFError as e:
-            #         print(e)
-            #     except urllib2.URLError as e:
-            #         print(e)
-
-            print('doneid:', self.redis_api.number('doneid'), ',newid:', self.redis_api.number('newid'), ',mongodhb:',
-                  self.mongo_api.number())
-
-
-def clearAll(redis_api, mongo_api):
-    while redis_api.number('newid') > 0:
-        redis_api.pop('newid')
-
-    while redis_api.number('doneid') > 0:
-        redis_api.pop('doneid')
-
-    mongo_api.drop()
-
-
-if __name__ == '__main__-':
-    redis_api = RedisAPI('127.0.0.1', 6379)
-    mongo_api = MongoAPI("127.0.0.1", 27017, "taobao", "tb1")
-    print('clear all')
-    clearAll(redis_api, mongo_api)
-
-if __name__ == '__main__':
-    startid = 545265395724
-    redis_api = api.redis.RedisAPI('127.0.0.1', 6379)
-    mongo_api = api.mongodb.MongoAPI("127.0.0.1", 27017, "taobao", "tb1")
-
-    spider = Spider(startid, mongo_api, redis_api)
-    spider.Action()

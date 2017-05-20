@@ -20,103 +20,132 @@ header = {
 
 
 class CrawlerTM(Crawler):
-    pass
+    index_url_format = 'https://detail.tmall.com/item.htm?id={Id}'
+    recommend_url_format1 = 'https://ext-mdskip.taobao.com/extension/queryTmallCombo.do?&callback=jsonp2358&itemId={Id}'
+    recommend_url_format2 = 'https://aldcdn.tmall.com/recommend.htm?itemId={Id}&categoryId=50011123&sellerId=1022008754&shopId=73200079&brandId' \
+                            '=29483&refer=&brandSiteId=0&rn=&appId=03054&isVitual3C=false&isMiao=false&count=15&callback=jsonpAld03054'
+    # we have to format sellerid shopid
+    price_url_format = 'https://mdskip.taobao.com/core/initItemDetail.htm?itemId={Id}&callback=setMdskip'
+    sellcount_url_format = 'https://dsr-rate.tmall.com/list_dsr_info.htm?itemId={Id}&spuId=418408433&sellerId=1022008754&callback=jsonp229'
+    header = {
+        'referer': '',
+        'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537\
+                            .36 (KHTML, like Gecko) Chrome/55.0.2883.75 Safari/537.36',
+        'cookie': '__jdv=122270672|www.shenjianshou.cn|-|referral|-|1494932842923; ipLoc-djd=1-72-2799-0; __jda=122270672.1494932842919250345233.1494932843.1494932843.1494932843.1; __jdb=122270672.5.1494932842919250345233|1.1494932843; __jdc=122270672; 3AB9D23F7A4B3C9B=ZTFV5ON3CG2LCT'
+                  'EETWF5QWOEIPCDJAPHJZPVGDPDZCG4CPRCMPVJDK7V7VYJ5CQRW74HKMY5EFIBU7UYRPCCMZXYSY; __jdu=1494932842919250345233'
+    }
 
+    def __init__(self, id, mongo_api):
+        self.id = id
+        self.mongo_api = mongo_api
+        self.index_url = self.index_url_format.format(Id=self.id)
+        self.recommend_url1 = self.recommend_url_format1.format(Id=self.id)
+        self.recommend_url2 = self.recommend_url_format2.format(Id=self.id)
+        self.price_url = self.price_url_format.format(Id=self.id)
+        self.sellcount_url = self.sellcount_url_format.format(Id=self.id)
+        self.header['referer'] = self.index_url
 
-def getName():
-    index_url = 'https://detail.tmall.com/item.htm?id=522128736149'
-    request = urllib2.Request(index_url, headers=header)
-    response = urllib2.urlopen(request)
-    page = response.read().decode('gbk')
-    soup = BeautifulSoup(page, 'html.parser')
-    name = soup.select('title')[0].text[0:-12]
-    shopname = soup.select('.slogo-shopname')[0].text
-    print shopname
-    print name
+        self.name = ''
+        self.shopname = ''
+        self.shopid = 0
+        self.soldCount = 0
+        self.oldprice = 0
+        self.price = 0
+        self.newids = []
+        self.gradeAvg = 0
+        self.rateTotal = 0
 
+    def __init____(self):
+        pass
 
-def getComment():
-    comment_url = 'https://dsr-rate.tmall.com/list_dsr_info.htm?itemId=522128736149&spuId=418408433&sellerId=1022008754&_ksTS=1495267599070_228&callback=jsonp229'
-    request = urllib2.Request(comment_url, headers=header)
-    response = urllib2.urlopen(request)
-    page = response.read().decode('gbk')
-    # print page[9:-2]
-    jsondata = json.loads(page[9:-2])
-    gradeAvg = jsondata['dsr']['gradeAvg']
-    rateTotal = jsondata['dsr']['rateTotal']
-    print gradeAvg
-    print rateTotal
+    def Action(self):
+        self.getInformation()
+        self.printInfomation()
+        self.storeInformation()
 
+    def getInformation(self):
 
-def getSellCountPrice():
-    import random
-    sell_url = 'https://mdskip.taobao.com/core/initItemDetail.htm?isPurchaseMallPage=false&isUseInventoryCenter=false&isSecKill=false&household=false&queryMemberRight=true&cachedTimestamp=1495279140376&cartEnable=true&itemId=522128736149&tmallBuySupport=true&addressLevel=2&showShopProm=false&isRegionLevel=false&service3C=false&tryBeforeBuy=false&sellerPreview=false&isApparel=true&isForbidBuyItem=false&isAreaSell=false&offlineShop=false&callback=setMdskip&timestamp=1495279140862&isg=AsHBNSHhTeXGMNvk-vL0WLGeUQfavjXF&isg2=ArCw76OZnZNA6UGormbj277BgXcWEJRDpB2Bc6oALIv7ZVAPUglk0wYVy9r_'
-    request = urllib2.Request(sell_url, headers=header)
-    response = urllib2.urlopen(request)
-    page = response.read().decode('gbk')
-    print page[12:-1]
-    jsondata = json.loads(page[12:-1])
-    sellCount = jsondata['defaultModel']['sellCountDO']['sellCount']
-    price = jsondata['defaultModel']['itemPriceResultDO']['priceInfo']
-    key = random.choice(price.keys())
-    oldPrice=price[key]['price'] #old
-    price=[key]['promotionList'][0]['price']
-    print sellCount
-    print oldPrice
-    print price
+        def getName():
+            request = urllib2.Request(url=self.index_url, headers=header)
+            response = urllib2.urlopen(request)
+            page = response.read().decode('gbk')
+            soup = BeautifulSoup(page, 'html.parser')
+            self.name = soup.select('title')[0].text[0:-12]
+            self.shopname = soup.select('.slogo-shopname')[0].text
 
+        def getPrice():
+            import random
+            request = urllib2.Request(url=self.price_url, headers=header)
+            response = urllib2.urlopen(request)
+            page = response.read().decode('gbk')
+            # print page[12:-1]
+            jsondata = json.loads(page[12:-1])
+            self.soldCount = jsondata['defaultModel']['sellCountDO']['sellCount']
+            price = jsondata['defaultModel']['itemPriceResultDO']['priceInfo']
+            key = random.choice(price.keys())
+            self.oldprice = price[key]['price']  # old
+            self.price = price[key]['promotionList'][0]['price']
 
+        def getComment():
+            request = urllib2.Request(url=self.sellcount_url, headers=header)
+            response = urllib2.urlopen(request)
+            page = response.read().decode('gbk')
+            # print page[9:-2]
+            jsondata = json.loads(page[9:-2])
+            self.gradeAvg = jsondata['dsr']['gradeAvg']
+            self.rateTotal = jsondata['dsr']['rateTotal']
 
-def getPrice():
-    url = 'https://mdskip.taobao.com/core/initItemDetail.htm?isPurchaseMallPage=false&isUseInventoryCenter=false&isSecKill=false&household=false&queryMemberRight=true&cachedTimestamp=1495279140376&cartEnable=true&itemId=522128736149&tmallBuySupport=true&addressLevel=2&showShopProm=false&isRegionLevel=false&service3C=false&tryBeforeBuy=false&sellerPreview=false&isApparel=true&isForbidBuyItem=false&isAreaSell=false&offlineShop=false&callback=setMdskip&timestamp=1495280805834&isg=AkZGJcglUqSFeXx1Ceu7eVgGFjbLhYrS&isg2=At7eZdW0CylIdl_yTEC1MXyPL300dqIZJqM_yYhkaCGvq3yF8y2MKSUL1QBd'
-    request = urllib2.Request(url, headers=header)
-    response = urllib2.urlopen(request)
-    page = response.read().decode('gbk')
-    print page
+        def getRecommend1():
+            request = urllib2.Request(url=self.recommend_url1, headers=header)
+            response = urllib2.urlopen(request)
+            page = response.read().decode('gbk')
+            # print page[12:-1]
+            jsondata = json.loads(page[12:-1])
+            if jsondata['currentCombo']['items'] is not None:
+                for i in jsondata['currentCombo']['items']:
+                    self.newids.append(i.encode('utf-8'))
 
+        def getRecommend2():
+            request = urllib2.Request(url=self.recommend_url2, headers=header)
+            response = urllib2.urlopen(request)
+            page = response.read().decode('gbk')
+            # print page[16:-1]
+            jsondata = json.loads(page[16:-1])
 
-def getRecommend():
-    commend_url = 'https://ext-mdskip.taobao.com/extension/queryTmallCombo.do?areaId=370100&comboId=&noCache=false&_ksTS=1495277889656_2357&callback=jsonp2358&itemId=522128736149&comboGroup=0&isg=AvHxqur-DKBeQ6CLtyGSyHc-AHSfN5WEHZJgUNMG1rjb-hFMGy51IJ8cajlm&isg2=AnR0pPxCoFKDQ04r1%2FFpTxMoxDjmdpg7'
-    request = urllib2.Request(commend_url, headers=header)
-    response = urllib2.urlopen(request)
-    page = response.read().decode('gbk')
-    # print page[12:-1]
-    jsondata = json.loads(page[12:-1])
-    for i in jsondata['currentCombo']['items']:
-        print i.encode('utf-8')
+            pa = r'.*?pvid.*?id=(.*?)&scm.*?'
+            pattern = re.compile(pa, re.S)
 
+            for i in jsondata['list']:
+                url = i['url'].encode('utf-8')
+                id = re.findall(pattern, url)
+                self.newids.append(id[0])
 
-def getRecommend1():
-    commend_url = 'https://aldcdn.tmall.com/recommend.htm?itemId=522128736149&categoryId=50011123&sellerId=1022008754&shopId=73200079&brandId=29483&refer=&brandSiteId=0&rn=&appId=03054&isVitual3C=false&isMiao=false&count=15&callback=jsonpAld03054'
-    request = urllib2.Request(commend_url, headers=header)
-    response = urllib2.urlopen(request)
-    page = response.read().decode('gbk')
-    # print page[16:-1]
-    jsondata = json.loads(page[16:-1])
+        getName()
+        self.__init____()
+        getPrice()
+        getComment()
+        getRecommend1()
+        getRecommend2()
 
-    pa = r'.*?pvid.*?id=(.*?)&scm.*?'
-    pattern = re.compile(pa, re.S)
+    def printInfomation(self):
+        print'Id:', self.id, type(self.id)
+        print'商品名称:', self.name, type(self.name)
+        print'店铺名称:', self.shopname, type(self.shopname)
+        print'销量:', self.soldCount, type(self.soldCount)
+        print'评分:', self.gradeAvg, type(self.gradeAvg)
+        print'原价:', self.oldprice, type(self.oldprice)
+        print'现价:', self.price, type(self.price)
+        print'好评率:', self.rateTotal, type(self.rateTotal)
+        print'Newid:', len(self.newids), self.newids, type(self.newids[0])
 
-    for i in jsondata['list']:
-        url = i['url'].encode('utf-8')
-        id = re.findall(pattern, url)
-        print id[0]
+    def storeInformation(self):
+        self.mongo_api.add({'商品ID': self.id, '商品名称': self.name, '价格': self.price, '评分': self.gradeAvg,
+                            '销量': int(self.soldCount), '好评率': self.rateTotal, '原价': int(self.oldprice),
+                            '店铺': self.shopname})
 
-
-def getshochang():
-    import demjson
-
-    url = 'https://count.taobao.com/counter3?_ksTS=1495280808062_252&callback=jsonp253&keys=SM_368_dsr-1022008754,ICCP_1_522128736149'
-    request = urllib2.Request(url, headers=header)
-    response = urllib2.urlopen(request)
-    page = response.read().decode('gbk')
-    print page[9:-2]
-    jsondata = demjson.encode(page[9:-2].encode('utf-8'))
-    print jsondata
-    shochang = jsondata["ICCP_1_522128736149"]
-    # bug
-    print shochang
+    def generateNewId(self):
+        return self.newids
 
 
 if __name__ == "__main__":
-    getName()
+    pass

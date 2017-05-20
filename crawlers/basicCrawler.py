@@ -7,11 +7,17 @@
 
 
 class Crawler(object):
-    def ner(self):
+    def Action(self):
         pass
 
-    def generateNewId(self):
+    def getInformation(self):
+        pass
+
+    def printInfomation(self):
         pass
 
     def storeInformation(self):
+        pass
+
+    def generateNewId(self):
         pass
