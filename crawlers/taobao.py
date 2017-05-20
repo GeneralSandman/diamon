@@ -6,75 +6,15 @@
 import urllib2
 import re
 from bs4 import BeautifulSoup
-import json
-import redis
-import pymongo
 import ssl
 import json
+
+import api.mongodb
+import api.redis
 
 json_data = {}
 
 
-class MongoAPI(object):
-    def __init__(self, db_ip, db_port, db_name, table_name):
-        self.db_ip = db_ip
-        self.db_port = db_port
-        self.db_name = db_name
-        self.table_name = table_name
-        self.conn = pymongo.MongoClient(host=self.db_ip, port=self.db_port)  # 创建链接
-        self.db = self.conn[self.db_name]  # 选择数据库
-        self.table = self.db[self.table_name]  # 选择集合
-
-    def get_one(self, query):
-        return self.table.find_one(query, projection={"_id": False})
-
-    def get_all(self, query):
-        return self.table.find(query)
-
-    def add(self, kv_dict):
-        return self.table.insert(kv_dict)
-
-    def drop(self):
-        return self.table.remove({})
-
-    def number(self):
-        return self.table.count()
-
-    def delete(self, query):
-        return self.table.delete_many(query)
-
-    def check_exist(self, query):
-        ret = self.get(query)
-        return len(ret) > 0
-
-    # 如果没有 会新建
-    def update(self, query, kv_dict):
-        ret = self.table.update_many(
-            query,
-            {
-                "$set": kv_dict,
-            }
-        )
-        if not ret.matched_count or ret.matched_count == 0:
-            self.add(kv_dict)
-        elif ret.matched_count and ret.matched_count > 1:
-            self.delete(query)
-            self.add(kv_dict)
-
-
-class RedisAPI(object):
-    def __init__(self, redis_host, redis_port):
-        self.pool = redis.ConnectionPool(host=redis_host, port=redis_port)
-        self.conn = redis.Redis(connection_pool=self.pool)
-
-    def add(self, collection, newid):
-        self.conn.sadd(collection, newid)
-
-    def pop(self, collection):
-        return self.conn.spop(collection)
-
-    def number(self, collection):
-        return self.conn.scard(collection)
 
 
 class CrawlerTaobao(object):
@@ -259,15 +199,15 @@ def clearAll(redis_api, mongo_api):
 
 
 if __name__ == '__main__-':
-    redis_api = RedisAPI('127.0.0.1', 6379)
-    mongo_api = MongoAPI("127.0.0.1", 27017, "taobao", "tb1")
+    redis_api = api.redis.RedisAPI('127.0.0.1', 6379)
+    mongo_api = api.mongodb.MongoAPI("127.0.0.1", 27017, "taobao", "tb1")
     print('clear all')
     clearAll(redis_api, mongo_api)
 
 if __name__ == '__main__':
     startid = 545265395724
-    redis_api = RedisAPI('127.0.0.1', 6379)
-    mongo_api = MongoAPI("127.0.0.1", 27017, "taobao", "tb1")
+    redis_api = api.redis.RedisAPI('127.0.0.1', 6379)
+    mongo_api = api.mongodb.MongoAPI("127.0.0.1", 27017, "taobao", "tb1")
 
     spider = Spider(startid, mongo_api, redis_api)
     spider.Action()
